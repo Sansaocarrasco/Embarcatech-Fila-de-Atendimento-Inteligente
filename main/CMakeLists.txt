@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(main main.c )
+add_executable(main main.c lib/ssd1306.c)
 
 pico_set_program_name(main "main")
 pico_set_program_version(main "0.1")
@@ -55,7 +55,7 @@ target_include_directories(main PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(main 
-        
+        hardware_i2c
         )
 
 pico_add_extra_outputs(main)
