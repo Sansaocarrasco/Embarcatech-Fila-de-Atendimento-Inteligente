@@ -31,7 +31,7 @@
 #define ENDERECO 0x3C  // Endereço do display OLED
 
 // Definições Adicionais
-#define TIME_DEBOUNCE 500  // Tempo de debounce para os botões (em milissegundos)
+#define TIME_DEBOUNCE 100  // Tempo de debounce para os botões (em milissegundos)
 
 ssd1306_t ssd;  // Instância do display OLED
 uint sm;  // Estado da máquina de estados do PIO
@@ -42,14 +42,15 @@ volatile uint32_t last_press_time_B = 0;
 volatile int current_number = 1;
 
 int last_char;
-int count_buzzer = 0; //Buzzer começa desativado
-int count_common = 0;
-int count_priority = 0;
+int count_buzzer = 0; // Buzzer começa desativado
 
-// Fila única para armazenar números comuns e prioritários
-char queue[800]; // Considerando que teremos até 400 números no total (200 comuns + 200 prioritários)
+// Filas para números comuns e prioritários
+char common_queue[400][6];  // Fila para números comuns
+char priority_queue[400][6];  // Fila para números prioritários
+int common_count = 0;  // Contador para números comuns
+int priority_count = 0;  // Contador para números prioritários
 
-// Variáveis para armazenar o número atual e próximo da fila
+// Variáveis para armazenar o número atual e próximo
 char current_number_str[6] = "Vazio";
 char next_number_str[6] = "Vazio";
 
@@ -69,7 +70,7 @@ void init_gpio() {
 
 // Função para inicializar o display OLED
 void init_oled(){
-  // Configura a interface I2C para o display OLED
+    // Configura a interface I2C para o display OLED
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
@@ -92,24 +93,33 @@ void update_display() {
     ssd1306_send_data(&ssd);  // Envia os dados ao display
 }
 
-// Função para atualizar a fila
+// Função para atualizar a fila de comum ou prioritário
 void update_queue(char type) {
     char number_str[6];  // "A001", "B001" tem 5 caracteres mais o terminador nulo
     if (type == 'A') {
         snprintf(number_str, sizeof(number_str), "A%03d", current_number++);
+        if (common_count < 400) {
+            snprintf(common_queue[common_count], sizeof(common_queue[common_count]), "%s", number_str);
+            common_count++;
+        }
     } else if (type == 'B') {
         snprintf(number_str, sizeof(number_str), "B%03d", current_number++);
+        if (priority_count < 400) {
+            snprintf(priority_queue[priority_count], sizeof(priority_queue[priority_count]), "%s", number_str);
+            priority_count++;
+        }
     }
 
-    // Adiciona o número à fila
-    strcat(queue, number_str);
-
     // Atualiza os números
-    if (strlen(queue) > 0) {
-        // Atualiza o número atual
-        snprintf(current_number_str, sizeof(current_number_str), "%s", queue);
-        // Atualiza o próximo número
-        snprintf(next_number_str, sizeof(next_number_str), "%s", queue + strlen(current_number_str));
+    if (common_count > 0 && priority_count > 0) {
+        snprintf(current_number_str, sizeof(current_number_str), "%s", common_queue[0]);
+        snprintf(next_number_str, sizeof(next_number_str), "%s", priority_queue[0]);
+    } else if (common_count > 0) {
+        snprintf(current_number_str, sizeof(current_number_str), "%s", common_queue[0]);
+        snprintf(next_number_str, sizeof(next_number_str), "%s", common_queue[1]);
+    } else if (priority_count > 0) {
+        snprintf(current_number_str, sizeof(current_number_str), "%s", priority_queue[0]);
+        snprintf(next_number_str, sizeof(next_number_str), "%s", priority_queue[1]);
     }
 }
 
@@ -118,16 +128,16 @@ void button_callback(uint gpio, uint32_t events){
   
     //Botão A
     if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
-      if (strlen(queue) > 0) {
-          // Faz swap entre o número atual e o próximo número
-          char temp[6];
-          snprintf(temp, sizeof(temp), "%s", current_number_str);
-          snprintf(current_number_str, sizeof(current_number_str), "%s", next_number_str);
-          snprintf(next_number_str, sizeof(next_number_str), "%s", temp);
-
-          // Remove o primeiro número da fila
-          memmove(queue, queue + 5, strlen(queue) - 5 + 1); // Remove "A001" ou "B001"
-      }
+      ssd1306_fill(&ssd, false);  // Limpa o display
+      ssd1306_draw_string(&ssd, "Botao A pressionado", 5, 15);  // Exibe a mensagem
+      ssd1306_send_data(&ssd);  // Envia os dados ao display
+      if (count_buzzer)
+      gpio_put(BUZZER_PIN, 1);  // Acionar o buzzer
+  
+      /*
+      Adicionar interação com as filas (prioridade e comum) para aparecer no 
+      display o numero atual a ser atendido e o próximo numero
+      */
     }
   
     // Botão B
@@ -136,7 +146,7 @@ void button_callback(uint gpio, uint32_t events){
       count_buzzer = !count_buzzer;  // Alterna o estado do buzzer
       gpio_put(BUZZER_PIN, count_buzzer);  // Atualiza o estado do pino
     }
-}
+  }
 
 void comunicacao_usb() {
     if (stdio_usb_connected()) {  // Verifica se a comunicação USB está conectada
@@ -161,12 +171,12 @@ int main() {
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &button_callback);
 
     while (1) {
-      // Exibir continuamente o número atual e o próximo número no OLED
-      update_display();
+        // Exibir continuamente o número atual e o próximo número no OLED
+        update_display();
 
-      comunicacao_usb();  // Atualiza a fila com entradas via USB
+        comunicacao_usb();  // Atualiza a fila com entradas via USB
 
-      sleep_ms(100);  // Atraso para evitar leitura muito rápida
+        sleep_ms(100);  // Atraso para evitar leitura muito rápida
     }
 
     return 0;
