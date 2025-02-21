@@ -46,8 +46,8 @@ int count_buzzer = 0; //Buzzer começa desativado
 int count_common = 0;
 int count_priority = 0;
 
-char list_common_numbers[400]; // 100 chamadas de numeros comuns
-char list_priority_numbers[400]; // 100 chamadas de numeros prioritarios
+// Fila única para armazenar números comuns e prioritários
+char queue[800]; // Considerando que teremos até 400 números no total (200 comuns + 200 prioritários)
 
 // Função para inicializar os botões e o buzzer
 void init_gpio() {
@@ -63,7 +63,7 @@ void init_gpio() {
     gpio_set_dir(BUZZER_PIN, GPIO_OUT);  // Saída para o buzzer
 }
 
-// Função pra inicializar o display OLED
+// Função para inicializar o display OLED
 void init_oled(){
   // Configura a interface I2C para o display OLED
     i2c_init(I2C_PORT, 400 * 1000);
@@ -78,67 +78,72 @@ void init_oled(){
     ssd1306_send_data(&ssd);
 }
 
-void button_callback(uint gpio, uint32_t events) {
-    uint32_t current_time = to_ms_since_boot(get_absolute_time());
-
-    // Botão A
-    if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
-        // Limpa o display
-        ssd1306_fill(&ssd, false);
-
-        // Formatar os números a serem exibidos
-        char current_str[20];
-        char next_str[20];
-
-        snprintf(current_str, sizeof(current_str), "Atual: %03d", current_number);
-        snprintf(next_str, sizeof(next_str), "Prox: %03d", current_number + 1);
-
-        // Desenha as strings no display
-        ssd1306_draw_string(&ssd, current_str, 5, 15);  // Número atual
-        ssd1306_draw_string(&ssd, next_str, 5, 30);     // Próximo número
-
-        ssd1306_send_data(&ssd);  // Envia os dados ao display
-
-        // Aciona o buzzer se estiver ativado
-        if (count_buzzer)
-            gpio_put(BUZZER_PIN, 1);
-
-        last_press_time_A = current_time; // Atualiza o tempo da última pressão
-    }
-
-    // Botão B (controle do buzzer)
-    if (gpio == BUTTON_B && current_time - last_press_time_B > TIME_DEBOUNCE) {
-        last_press_time_B = current_time; // Atualiza o tempo da última pressão
-        count_buzzer = !count_buzzer;  // Alterna o estado do buzzer
-        gpio_put(BUZZER_PIN, count_buzzer);  // Atualiza o estado do pino
-    }
+void update_display(const char* current, const char* next) {
+    ssd1306_fill(&ssd, false);  // Limpa o display
+    char display_string[64];
+    snprintf(display_string, sizeof(display_string), "Atual: %s", current);
+    ssd1306_draw_string(&ssd, display_string, 5, 10);  // Exibe o número atual
+    snprintf(display_string, sizeof(display_string), "Proximo: %s", next);
+    ssd1306_draw_string(&ssd, display_string, 5, 30);  // Exibe o próximo número
+    ssd1306_send_data(&ssd);  // Envia os dados ao display
 }
+
+// Função para atualizar a fila
+void update_queue(char type) {
+    char number_str[6];  // "A001", "B001" tem 5 caracteres mais o terminador nulo
+    if (type == 'A') {
+        snprintf(number_str, sizeof(number_str), "A%03d", current_number++);
+    } else if (type == 'B') {
+        snprintf(number_str, sizeof(number_str), "B%03d", current_number++);
+    }
+
+    // Adiciona o número à fila
+    strcat(queue, number_str);
+
+    // Se dois números comuns foram inseridos, insira um prioritário
+    if (type == 'A' && count_common == 1) {
+        char priority_str[6];
+        snprintf(priority_str, sizeof(priority_str), "P%03d", current_number++);
+        strcat(queue, priority_str);  // Adiciona número prioritário à fila
+    }
+
+    count_common = (type == 'A') ? (count_common + 1) % 2 : count_common; // Reseta após 2 números comuns
+}
+
+void button_callback(uint gpio, uint32_t events){
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+  
+    //Botão A
+    if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
+
+      if (count_buzzer)
+      gpio_put(BUZZER_PIN, 1);  // Acionar o buzzer
+  
+      /*
+      Adicionar interação com as filas (prioridade e comum) para aparecer no 
+      display o numero atual a ser atendido e o próximo numero
+      */
+    }
+  
+    // Botão B
+    if (gpio == BUTTON_B && current_time - last_press_time_B > TIME_DEBOUNCE) {
+      last_press_time_B = current_time; // Atualiza o tempo da última pressão
+      count_buzzer = !count_buzzer;  // Alterna o estado do buzzer
+      gpio_put(BUZZER_PIN, count_buzzer);  // Atualiza o estado do pino
+    }
+  }
 
 void comunicacao_usb() {
     if (stdio_usb_connected()) {  // Verifica se a comunicação USB está conectada
         char c = getchar();  // Lê um caractere da entrada
         if (c != EOF) {  // Se for um caractere válido
             last_char = c;  // Armazena o caractere
-            char prox_number[5];  // Para armazenar o número formatado
-            if (c >= 'A' && c <= 'B') {  // Se for 'A' ou 'B'
-                if (c == 'A') {
-                    snprintf(prox_number, sizeof(prox_number), "A%03d", current_number);
-                    if (strlen(list_common_numbers) + strlen(prox_number) < sizeof(list_common_numbers) - 1) {
-                        strcat(list_common_numbers, prox_number);  // Armazena em list_common_numbers
-                    }
-                } else if (c == 'B') {
-                    snprintf(prox_number, sizeof(prox_number), "B%03d", current_number);
-                    if (strlen(list_priority_numbers) + strlen(prox_number) < sizeof(list_priority_numbers) - 1) {
-                        strcat(list_priority_numbers, prox_number);  // Armazena em list_priority_numbers
-                    }
-                }
-
-                current_number += 1;  // Incrementa o número
+            if (c == 'A' || c == 'B') {
+                update_queue(c);  // Adiciona o número à fila
             }
         }
     }
 }
-
 
 int main() {
     // Inicializar os componentes
@@ -151,15 +156,26 @@ int main() {
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &button_callback);
 
     while (1) {
+      // Exibir continuamente o número atual e o próximo número no OLED
+      // Atualiza os números atuais e próximos
+      char current_number_str[6], next_number_str[6];
+      if (strlen(queue) > 0) {
+          // Pega o primeiro número da fila
+          snprintf(current_number_str, sizeof(current_number_str), "%s", queue); // Exibe o primeiro número
+          // Pega o próximo número da fila
+          snprintf(next_number_str, sizeof(next_number_str), "%s", queue + strlen(current_number_str)); // Pega o próximo número
+      } else {
+          snprintf(current_number_str, sizeof(current_number_str), "Vazio");
+          snprintf(next_number_str, sizeof(next_number_str), "Vazio");
+      }
 
-      // Exibir uma mensagem inicial no OLED
-      ssd1306_fill(&ssd, false);  // Limpa o display
-      ssd1306_draw_string(&ssd, "Aguardando", 5, 15);  // Exibe a mensagem
-      gpio_put(BUZZER_PIN, 0);  // Acionar o buzzer
+      update_display(current_number_str, next_number_str);
 
-      comunicacao_usb();
+      comunicacao_usb();  // Atualiza a fila com entradas via USB
+
       sleep_ms(100);  // Atraso para evitar leitura muito rápida
     }
 
     return 0;
 }
+
