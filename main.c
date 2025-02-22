@@ -31,7 +31,7 @@
 #define ENDERECO 0x3C  // Endereço do display OLED
 
 // Definições Adicionais
-#define TIME_DEBOUNCE 100  // Tempo de debounce para os botões (em milissegundos)
+#define TIME_DEBOUNCE 500  // Tempo de debounce para os botões (em milissegundos)
 
 ssd1306_t ssd;  // Instância do display OLED
 uint sm;  // Estado da máquina de estados do PIO
@@ -102,8 +102,7 @@ void update_queue() {
 }
 
 void update_display() {
-    // Trocar o número atual com o próximo
-    strcpy(current_number_str, next_number_str);
+    
 
     if (priority_count > 0 && (common_count % 2 == 0)) {
         // Exibe da fila prioritária
@@ -134,7 +133,8 @@ void button_callback(uint gpio, uint32_t events) {
   
     // Botão A
     if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
-        
+        // Trocar o número atual com o próximo
+        strcpy(current_number_str, next_number_str);
         update_display();
         if (count_buzzer)
             gpio_put(BUZZER_PIN, 1);  // Aciona o buzzer
