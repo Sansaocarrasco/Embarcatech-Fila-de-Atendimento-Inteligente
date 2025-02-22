@@ -106,11 +106,11 @@ void update_display() {
     // Atualiza o próximo número a ser exibido
     if (priority_count > 0 && (common_count % 2 == 0)) {
         // Exibe da fila prioritária
-        strcpy(next_number_str, priority_queue[priority_count - 1]); // Último número na fila prioritária
+        strcpy(next_number_str, priority_queue[0]); // Primeiro número na fila prioritária
     }
     else if (common_count > 0) {
         // Exibe da fila comum
-        strcpy(next_number_str, common_queue[common_count - 1]);  // Último número na fila comum
+        strcpy(next_number_str, common_queue[0]);  // Primeiro número na fila comum
     }
 
     ssd1306_fill(&ssd, false);  // Limpa o display
@@ -127,6 +127,7 @@ void update_display() {
     ssd1306_send_data(&ssd);  // Envia os dados ao display
 }
 
+
 void button_callback(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
   
@@ -134,10 +135,18 @@ void button_callback(uint gpio, uint32_t events) {
     if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
         // Atualiza o número atual com o próximo número da fila
         if (priority_count > 0) {
-            strcpy(current_number_str, priority_queue[priority_count - 1]);  // Número da fila prioritária
+            strcpy(current_number_str, priority_queue[0]);  // Primeiro número na fila prioritária
+            // Remove o primeiro número da fila prioritária
+            for (int i = 0; i < priority_count - 1; i++) {
+                strcpy(priority_queue[i], priority_queue[i + 1]);
+            }
             priority_count--;  // Remove o número da fila
         } else if (common_count > 0) {
-            strcpy(current_number_str, common_queue[common_count - 1]);  // Número da fila comum
+            strcpy(current_number_str, common_queue[0]);  // Primeiro número na fila comum
+            // Remove o primeiro número da fila comum
+            for (int i = 0; i < common_count - 1; i++) {
+                strcpy(common_queue[i], common_queue[i + 1]);
+            }
             common_count--;  // Remove o número da fila
         }
         
@@ -155,7 +164,6 @@ void button_callback(uint gpio, uint32_t events) {
         gpio_put(BUZZER_PIN, count_buzzer);  // Atualiza o estado do pino do buzzer
     }
 }
-
 
 void comunicacao_usb() {
     if (stdio_usb_connected()) {  // Verifica se a comunicação USB está conectada
