@@ -31,7 +31,7 @@
 #define ENDERECO 0x3C  // Endereço do display OLED
 
 // Definições Adicionais
-#define TIME_DEBOUNCE 500  // Tempo de debounce para os botões (em milissegundos)
+#define TIME_DEBOUNCE 200  // Tempo de debounce para os botões (em milissegundos)
 
 ssd1306_t ssd;  // Instância do display OLED
 uint sm;  // Estado da máquina de estados do PIO
@@ -54,6 +54,9 @@ char current_number_str[5] = "Vazio";
 char next_number_str[5] = "Vazio";
 char last_char = '\0';
 
+int count_A = 0;
+int count_B = 0;
+
 // Contadores para o buzzer
 int count_buzzer = 0;
 
@@ -69,6 +72,8 @@ void init_gpio() {
 
     gpio_init(BUZZER_PIN);
     gpio_set_dir(BUZZER_PIN, GPIO_OUT);
+    gpio_put(BUZZER_PIN, 0);
+
 }
 // Função para inicializar o display
 void init_oled() {
@@ -82,6 +87,13 @@ void init_oled() {
     ssd1306_config(&ssd);
     ssd1306_send_data(&ssd);
 }
+// Função pra tocar o buzzer
+void beep(int duration_ms) {
+    gpio_put(BUZZER_PIN, 1);
+    sleep_ms(duration_ms);
+    gpio_put(BUZZER_PIN, 0);
+}
+
 
 // Função pra atualizar as filas
 void update_queue() {
@@ -119,7 +131,9 @@ void button_callback(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
     
     if (gpio == BUTTON_A && (current_time - last_press_time_A) > TIME_DEBOUNCE) {
+        count_A = 1;
         last_press_time_A = current_time;
+
         if (confirm_count % 3 == 2 && priority_count > 0) {
             strcpy(current_number_str, priority_queue[0]);
             for (int i = 0; i < priority_count - 1; i++) {
@@ -135,15 +149,13 @@ void button_callback(uint gpio, uint32_t events) {
         }
         confirm_count++;
         update_display();
-        if (count_buzzer)
-            gpio_put(BUZZER_PIN, 1);
     }
     
     if (gpio == BUTTON_B && (current_time - last_press_time_B) > TIME_DEBOUNCE) {
+        count_B = 1;
         last_press_time_B = current_time;
-        count_buzzer = !count_buzzer;
-        gpio_put(BUZZER_PIN, count_buzzer);
     }
+    
 }
 
 // Função para comunicação USB
@@ -172,7 +184,20 @@ int main() {
     update_display();
 
     while (1) {
-        // Atualiza as filas e o display a partir dos caracters recebidos
+        // Verifica o botão A e emite o beep
+        if (count_A) {
+            if (count_buzzer) {
+                beep(100);  // Apita se o buzzer estiver ativado
+            }
+            count_A = 0;
+        }
+
+        // Verifica o botão B para alternar o estado do buzzer
+        if (count_B) {
+            count_buzzer = !count_buzzer;  // Alterna o estado do buzzer
+            count_B = 0;
+        }
+
         comunicacao_usb();
         sleep_ms(100);
     }
