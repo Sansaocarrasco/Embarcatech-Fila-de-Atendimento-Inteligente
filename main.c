@@ -86,53 +86,49 @@ void init_oled(){
 
 // Função para atualizar a fila de comum ou prioritário
 void update_queue() {
-    // Adicionar números na fila comum ou prioritária, dependendo do caractere pressionado
     if (last_char == 'A' && priority_count < 500) {
-        // Gerar o número no formato A001, A002, etc., para a fila prioritária
         snprintf(priority_queue[priority_count], sizeof(priority_queue[priority_count]), "A%03d", priority_count + 1);
-        priority_count++;  // Incrementa o contador da fila prioritária
-        last_char = '\0';  // Reseta o caractere
-    }
-    else if (last_char == 'B' && common_count < 500) {
-        // Gerar o número no formato B001, B002, etc., para a fila comum
+        printf("Prioritário Adicionado: %s\n", priority_queue[priority_count]);  // Debugging line
+        priority_count++;
+        last_char = '\0';
+    } else if (last_char == 'B' && common_count < 500) {
         snprintf(common_queue[common_count], sizeof(common_queue[common_count]), "B%03d", common_count + 1);
-        common_count++;  // Incrementa o contador da fila comum
-        last_char = '\0';  // Reseta o caractere
+        common_count++;
+        last_char = '\0';
     }
 }
 
 
+
 void update_display() {
-    // Atualiza o próximo número a ser exibido
     if (priority_count > 0 && (common_count % 2 == 0)) {
-        // Exibe da fila prioritária
-        strcpy(next_number_str, priority_queue[0]); // Primeiro número na fila prioritária
-    }
-    else if (common_count > 0) {
-        // Exibe da fila comum
-        strcpy(next_number_str, common_queue[0]);  // Primeiro número na fila comum
+        strcpy(next_number_str, priority_queue[0]);
+        printf("Exibindo Prioritário: %s\n", next_number_str);  // Debugging line
+    } else if (common_count > 0) {
+        strcpy(next_number_str, common_queue[0]);
     }
 
     ssd1306_fill(&ssd, false);  // Limpa o display
     char display_string[64];
-    
-    // Exibe o número atual
-    snprintf(display_string, sizeof(display_string), "Atual: %s", current_number_str);
-    ssd1306_draw_string(&ssd, display_string, 5, 10);  // Exibe o número atual no display
 
-    // Exibe o próximo número
+    snprintf(display_string, sizeof(display_string), "Atual: %s", current_number_str);
+    ssd1306_draw_string(&ssd, display_string, 5, 10);
+
     snprintf(display_string, sizeof(display_string), "Proximo: %s", next_number_str);
-    ssd1306_draw_string(&ssd, display_string, 5, 30);  // Exibe o próximo número no display
-    
-    ssd1306_send_data(&ssd);  // Envia os dados ao display
+    ssd1306_draw_string(&ssd, display_string, 5, 30);
+
+    ssd1306_send_data(&ssd);
 }
+
 
 
 void button_callback(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
-  
+
     // Botão A
-    if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
+    if (gpio == BUTTON_A && (current_time - last_press_time_A) > TIME_DEBOUNCE) {
+        last_press_time_A = current_time;  // Atualiza o tempo do último pressionamento
+
         // Atualiza o número atual com o próximo número da fila
         if (priority_count > 0) {
             strcpy(current_number_str, priority_queue[0]);  // Primeiro número na fila prioritária
@@ -149,17 +145,17 @@ void button_callback(uint gpio, uint32_t events) {
             }
             common_count--;  // Remove o número da fila
         }
-        
+
         // Atualiza o display com o novo número
         update_display();
 
         if (count_buzzer)
             gpio_put(BUZZER_PIN, 1);  // Aciona o buzzer
     }
-  
+
     // Botão B
-    if (gpio == BUTTON_B && current_time - last_press_time_B > TIME_DEBOUNCE) {
-        last_press_time_B = current_time;  // Atualiza o tempo da última pressão
+    if (gpio == BUTTON_B && (current_time - last_press_time_B) > TIME_DEBOUNCE) {
+        last_press_time_B = current_time;  // Atualiza o tempo do último pressionamento
         count_buzzer = !count_buzzer;  // Alterna o estado do buzzer
         gpio_put(BUZZER_PIN, count_buzzer);  // Atualiza o estado do pino do buzzer
     }
