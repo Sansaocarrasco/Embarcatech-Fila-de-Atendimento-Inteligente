@@ -47,7 +47,9 @@ Embora existam sistemas de gerenciamento de filas, a integração de um display 
 
 O vídeo demonstrativo deste projeto pode ser acessado no link a seguir:
 
-[Inserir link do vídeo]
+https://youtu.be/8jKBWqoP_Y8?si=ImBj8muZwuEUqSMz
+
+*Fonte: autor*
 
 ## 📜 Licença
 
