@@ -9,11 +9,10 @@ A tarefa requer os seguintes componentes conectados à Raspberry Pi Pico W:
 | Componente               | Conexão à GPIO    |
 |--------------------------|------------------|
 | Raspberry Pi Pico W      | Controlador central |
-| Botão A                  | Entrada para interação do usuário |
-| Botão B                  | Controle do buzzer |
+| Botão A                  | GPIO 5 |
+| Botão B                  | GPIO 6|
 | Display OLED SSD1306     | I2C (GPIO 14, GPIO 15) |
-| Buzzer                   | Emissão de som |
-| Comunicação USB          | Interface de comunicação |
+| Buzzer                   | GPIO 10 |
 
 ## 📌 Requisitos da Atividade
 
